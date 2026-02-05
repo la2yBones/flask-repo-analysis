@@ -1,0 +1,7 @@
+flask
+gitpython
+pandas
+libcst
+z3-solver
+pysnooper
+matplotlib
