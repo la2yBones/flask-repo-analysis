@@ -1,0 +1,11 @@
+flask
+gitpython
+pandas
+libcst
+z3-solver
+pysnooper
+matplotlib
+radon>=6.0.1  # 计算圈复杂度、代码度量
+astroid>=3.0.0  # 代码语法分析
+click>=8.0.0    # 命令行交互（可选）
+seaborn>=0.12.0 # 可视化增强
