@@ -8,48 +8,41 @@ logger = get_logger("GitProcessor")
 class FlaskEvolutionMiner:
     def __init__(self, repo_path):
         self.repo_path = repo_path
-        if not os.path.exists(repo_path):
-            logger.error(f"Repo path {repo_path} does not exist.")
-            raise FileNotFoundError()
         self.repo = Repo(repo_path)
 
-    def extract_commit_history(self, output_csv, max_commits=500):
+    def extract_commit_history(self, output_csv, limit=500, since=None, until=None):
         """
-        优化后的提取逻辑
-        :param max_commits: 限制分析的提交数量，防止程序卡死
+        :param limit: 最大提取数量
+        :param since: 开始日期 (YYYY-MM-DD)
+        :param until: 结束日期 (YYYY-MM-DD)
         """
-        logger.info(f"Starting git commit mining (Limited to last {max_commits} commits)...")
+        logger.info(f"Git分析启动: 范围={since} 至 {until}, 限制数量={limit}")
         
-        # 仅获取最近的指定数量提交
-        commits = list(self.repo.iter_commits('main', max_count=max_commits))
+        # 构建 Git 过滤参数
+        kwargs = {"max_count": limit}
+        if since: kwargs["since"] = since
+        if until: kwargs["until"] = until
+
+        commits = list(self.repo.iter_commits('main', **kwargs))
+        
+        if not commits:
+            logger.warning("在指定范围内未找到任何提交！")
+            return pd.DataFrame()
+
         data = []
-        
-        for i, c in enumerate(commits):
+        for c in commits:
             msg = c.message.lower()
-            # 简单的分类逻辑
-            if "fix" in msg or "bug" in msg:
-                category = "bugfix"
-            elif "feat" in msg or "add" in msg:
-                category = "feature"
-            elif "doc" in msg:
-                category = "documentation"
-            else:
-                category = "refactor/others"
+            category = "feature" if "feat" in msg else "bugfix" if "fix" in msg else "docs" if "doc" in msg else "refactor"
             
-            # 关键修改：跳过 c.stats.files 以大幅提升速度
-            # 如果你确实需要文件变更数量，可以只针对少量 commit 开启
             data.append({
                 "hash": c.hexsha,
                 "author": c.author.name,
                 "date": c.authored_datetime,
                 "category": category,
-                "summary": c.summary[:50] # 提取简短摘要
+                "summary": c.summary[:60]
             })
             
-            if i % 100 == 0:
-                logger.info(f"Processed {i} commits...")
-
         df = pd.DataFrame(data)
-        df.to_csv(output_csv, index=False)
-        logger.info(f"History saved to {output_csv}")
+        df.to_csv(output_csv, index=False, encoding="utf-8-sig")
+        logger.info(f"成功提取 {len(df)} 条提交记录至 {output_csv}")
         return df
