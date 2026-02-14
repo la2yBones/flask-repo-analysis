@@ -1,7 +1,21 @@
-flask
-gitpython
-pandas
-libcst
-z3-solver
-pysnooper
-matplotlib
+# --- Web 框架与动态追踪 ---
+flask>=2.0.0
+pysnooper>=0.4.2
+
+# --- 代码静态分析与重构 ---
+libcst>=0.4.0
+
+# --- 形式化验证 ---
+z3-solver>=4.12.0
+
+# --- Git 仓库挖掘 ---
+gitpython>=3.1.0
+
+# --- 数据处理与数学分析 ---
+pandas>=1.3.0
+numpy>=1.21.0
+
+# --- 可视化报告 ---
+matplotlib>=3.4.0
+
+seaborn

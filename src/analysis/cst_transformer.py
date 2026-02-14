@@ -1,7 +1,6 @@
 import libcst as cst
 
 class FlaskLegacyFixer(cst.CSTTransformer):
-    """模拟演化：将旧版 flask.Markup 替换为新规范 markupsafe.Markup"""
     def leave_ImportFrom(self, original_node, updated_node):
         if updated_node.module.value == 'flask':
             new_names = [n for n in updated_node.names if n.name.value != 'Markup']

@@ -1,3 +1,11 @@
+import sys
+import os
+
+# 获取项目根目录（E:\Code\hw\flask）
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 将根目录加入Python路径
+sys.path.append(ROOT_DIR)
+
 import pysnooper
 from flask import Flask, jsonify
 from src.analysis.z3_verifier import verify_route_permission
