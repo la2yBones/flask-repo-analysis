@@ -3,14 +3,28 @@ import os
 
 class FlaskFeatureVisitor(ast.NodeVisitor):
     def __init__(self):
-        self.results = {"routes": [], "async_views": 0}
+        self.results = {
+            "routes": [], 
+            "async_views": 0,
+            "func_lengths": [],
+            "decorators": {}
+        }
 
     def visit_FunctionDef(self, node):
-        # 检查是否为 Flask 路由
+        # 统计函数行数
+        length = node.end_lineno - node.lineno
+        self.results["func_lengths"].append(length)
+
+        # 统计装饰器
         for deco in node.decorator_list:
-            if isinstance(deco, ast.Call) and getattr(deco.func, 'attr', '') == 'route':
-                route_path = deco.args[0].value if deco.args and isinstance(deco.args[0], ast.Constant) else "dynamic"
-                self.results["routes"].append(route_path)
+            name = ""
+            if isinstance(deco, ast.Call):
+                if isinstance(deco.func, ast.Attribute): name = deco.func.attr
+                elif isinstance(deco.func, ast.Name): name = deco.func.id
+            elif isinstance(deco, ast.Name): name = deco.id
+            
+            if name:
+                self.results["decorators"][name] = self.results["decorators"].get(name, 0) + 1
         self.generic_visit(node)
 
     def visit_AsyncFunctionDef(self, node):
