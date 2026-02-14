@@ -11,34 +11,61 @@ class FlaskFeatureVisitor(ast.NodeVisitor):
         }
 
     def visit_FunctionDef(self, node):
-        # 统计函数行数
+        # 记录函数行数用于复杂度分析
         length = node.end_lineno - node.lineno
         self.results["func_lengths"].append(length)
 
-        # 统计装饰器
+        # 1. 识别装饰器路由 (如 @app.route, @blueprint.route, @route)
         for deco in node.decorator_list:
-            name = ""
+            deco_name = ""
+            # 处理 @app.route('/') 这种 Call 形式
             if isinstance(deco, ast.Call):
-                if isinstance(deco.func, ast.Attribute): name = deco.func.attr
-                elif isinstance(deco.func, ast.Name): name = deco.func.id
-            elif isinstance(deco, ast.Name): name = deco.id
-            
-            if name:
-                self.results["decorators"][name] = self.results["decorators"].get(name, 0) + 1
+                func = deco.func
+                # 处理 app.route
+                if isinstance(func, ast.Attribute):
+                    deco_name = func.attr
+                # 处理 route
+                elif isinstance(func, ast.Name):
+                    deco_name = func.id
+                
+                if deco_name == 'route':
+                    # 提取路由路径
+                    if deco.args and isinstance(deco.args[0], ast.Constant):
+                        self.results["routes"].append(str(deco.args[0].value))
+                    else:
+                        self.results["routes"].append("dynamic_route")
+
+            # 记录装饰器频率
+            if deco_name:
+                self.results["decorators"][deco_name] = self.results["decorators"].get(deco_name, 0) + 1
+
         self.generic_visit(node)
 
     def visit_AsyncFunctionDef(self, node):
+        # 增加对异步函数的统计
         self.results["async_views"] += 1
+        self.visit_FunctionDef(node) # 异步函数也可能是路由
+
+    def visit_Call(self, node):
+        # 2. 识别非装饰器路由 (如 app.add_url_rule('/', ...))
+        if isinstance(node.func, ast.Attribute) and node.func.attr == 'add_url_rule':
+            if node.args and isinstance(node.args[0], ast.Constant):
+                self.results["routes"].append(str(node.args[0].value))
         self.generic_visit(node)
 
-def analyze_flask_project(src_dir):
+def analyze_flask_project(target_path):
     visitor = FlaskFeatureVisitor()
-    for root, _, files in os.walk(src_dir):
+    if not os.path.exists(target_path):
+        return visitor.results
+
+    for root, _, files in os.walk(target_path):
         for file in files:
             if file.endswith(".py"):
-                with open(os.path.join(root, file), "r", encoding="utf-8") as f:
-                    try:
+                file_path = os.path.join(root, file)
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
                         tree = ast.parse(f.read())
                         visitor.visit(tree)
-                    except: pass
+                except Exception:
+                    continue
     return visitor.results

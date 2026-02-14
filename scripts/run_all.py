@@ -139,7 +139,11 @@ def main():
     parser.add_argument("--repo", type=str, default="./data/raw/flask")
     args = parser.parse_args()
 
-    # 执行流程
+    # 创建必要目录
+    for d in ["./data/raw", "./data/processed", "./data/output"]:
+        os.makedirs(d, exist_ok=True)
+
+    # --- 1. 执行 Git 分析 ---
     df_git = pd.DataFrame()
     if os.path.exists(args.repo):
         miner = FlaskEvolutionMiner(args.repo)
@@ -148,12 +152,43 @@ def main():
             df_git['date'] = pd.to_datetime(df_git['date'], utc=True)
             df_git['weekday'] = df_git['date'].dt.weekday
         plot_evolution_charts(ANALYSIS_CONFIG["output_csv"], "./data/output")
+    else:
+        logger.error(f"路径不存在: {args.repo}，请确保已 git clone flask 到该位置")
+        return
+
+    # --- 2. 执行静态分析 (关键修改位置) ---
+    logger.info("正在执行静态特征扫描...")
     
-    ast_res = analyze_flask_project("./src")
+    # 逻辑：优先扫描 flask 仓库下的 tests 文件夹，获取路由定义
+    flask_repo_path = args.repo
+    test_path = os.path.join(flask_repo_path, "tests")
+    example_path = os.path.join(flask_repo_path, "examples")
+    
+    if os.path.exists(test_path):
+        scan_target = test_path
+        logger.info(f"检测到 Flask 测试目录，开始扫描: {scan_target}")
+    elif os.path.exists(example_path):
+        scan_target = example_path
+        logger.info(f"检测到 Flask 示例目录，开始扫描: {scan_target}")
+    else:
+        scan_target = flask_repo_path
+        logger.info(f"未找到测试目录，扫描全库: {scan_target}")
+
+    # 调用扫描器
+    ast_res = analyze_flask_project(scan_target)
+    
+    # 打印扫描结果，方便调试
+    logger.info(f"扫描完成。找到路由数: {len(ast_res.get('routes', []))}")
+
+    # --- 3. 执行安全验证 ---
     z3_res = verify_route_permission("User", "Admin")
     
+    # --- 4. 执行报告生成 ---
     generate_final_report(args, ast_res, z3_res, df_git)
-    print("\n任务完成！报告见: data/output/Analysis_Report.md")
+    
+    print("\n" + "="*60)
+    print("任务完成！")
+    print(f"报告路径: {os.path.abspath(SCAN_CONFIG['report_md'])}")
 
 if __name__ == "__main__":
     main()
